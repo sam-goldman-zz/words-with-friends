@@ -1,4 +1,4 @@
-// TODO: find/replace all (this.state.?)squares[row][col] with getTileValue(row, col)
+// TODO: find/replace all (this.state.?)squares[row][col] with getTileValue(row, col) or setTileValue
 
 import React from 'react';
 import './App.css';
@@ -76,10 +76,6 @@ class Board extends React.Component {
   }
 }
 
-// function isValidWord(orientation) {
-
-// }
-
 class Game extends React.Component {
   constructor(props) {
     // Initializes new board
@@ -88,16 +84,30 @@ class Game extends React.Component {
       squares[i] = new Array(15).fill('');
     }
 
+    // var word = ['F', 'L', 'A', 'N', 'K'];
+    // var col = 5;
+    // for (let i = 7; i < 12; i++) {
+    //   squares[i][col] = word[i-7];
+    // }
+
+    // var col = 7;
+    // var word = ['D', 'R', 'E', 'S', 'S'];
+    // for (let i = 5; i < 10; i++) {
+    //   squares[i][col] = word[i-5];
+    // }
+
     super(props);
     this.state = {
       squares: squares,
       playerOneIsNext: true,
       playerOneScore: 0,
       playerTwoScore: 0,
-      playerOneTiles: ['B', 'D', 'E', 'F', 'M', 'A', ''],
+      playerOneTiles: ['O', 'A', 'D', 'F', 'M', 'A', ''],
       newTiles: [],
+      newTileOrientation: '',
       selectedPlayerTileIdx: null,
-      selectedBoardIdx: null
+      selectedBoardIdx: null,
+      validWordTiles: [],
       // TODO. getNewTile will modify this.
       // tileBank:
     }
@@ -126,11 +136,16 @@ class Game extends React.Component {
         const playerOneTiles = this.state.playerOneTiles;
         squares[row][col] = playerOneTiles[selectedPlayerTileIdx];
         playerOneTiles[selectedPlayerTileIdx] = '';
+        const newTiles = this.state.newTiles.concat([[row, col]]);
+        const newTileOrientation = this.getOrientation(newTiles);
+        // const validWordTiles = this.getValidWordTiles(newTiles, newTileOrientation);
         this.setState({
           squares: squares,
           playerOneTiles: playerOneTiles,
           selectedPlayerTileIdx: null,
-          newTiles: this.state.newTiles.concat([[row, col]])
+          newTiles: newTiles,
+          newTileOrientation: newTileOrientation,
+          // validWordTiles: validWordTiles
         })
       }
       else if (selectedBoardIdx !== null) {
@@ -140,11 +155,15 @@ class Game extends React.Component {
         const newTiles = this.state.newTiles.map(tile => (
           tile[0] === prevRow && tile[1] === prevCol ? [row, col] : tile)
         )
-
+        const newTileOrientation = this.getOrientation(newTiles);
+        // TODO: validWordTiles (find all)
+        // const validWordTiles = this.getValidWordTiles(newTiles, orientation);
         this.setState({
           squares: squares,
           selectedBoardIdx: null,
-          newTiles: newTiles
+          newTiles: newTiles,
+          newTileOrientation: newTileOrientation,
+          // validWordTiles: validWordTiles
         })
       }
     }
@@ -186,12 +205,14 @@ class Game extends React.Component {
         const [prevRow, prevCol] = this.getCoords(selectedBoardIdx);
         playerOneTiles[i] = this.getTileValue(prevRow, prevCol);
         squares[prevRow][prevCol] = '';
-        const newTiles = this.state.newTiles.filter(tile => tile[0] !== prevRow || tile[1] !== prevCol)
+        const newTiles = this.state.newTiles.filter(tile => tile[0] !== prevRow || tile[1] !== prevCol);
+        // const validWordTiles = this.getValidWordTiles(newTiles, orientation);
         this.setState({
           squares: squares,
           playerOneTiles: playerOneTiles,
           selectedBoardIdx: null,
-          newTiles: newTiles
+          newTiles: newTiles,
+          // validWordTiles: validWordTiles
         })
       }
       else if (selectedPlayerTileIdx !== null) {
@@ -212,8 +233,17 @@ class Game extends React.Component {
     )
   }
 
-  // TODO
-  // getValidWords
+  // Output e.g. [[[4, 3], [3, 3], [2, 3]], [[2, 2], [2, 3]]] (note three layers of arrays)
+  getValidWordTiles(tiles, orientation) {
+    const validWordTiles = [];
+    if (orientation === 'horizontal') {
+      let horizontalWord;
+      while (this.hasEastWestNeighbor)
+    }
+    for (const tile of tiles) {
+
+    }
+  }
 
   // Returns true if there aren't any blank spaces between tiles, and false otherwise.
   // Input: tiles, which are all in a straight line, and orientation = 'horizontal' or 'vertical'.
@@ -242,27 +272,25 @@ class Game extends React.Component {
     return true;
   }
 
-  hasEastWestNeighbor(row, col) {
-    const east = this.getTileValue(row, col + 1);
-    const west = this.getTileValue(row, col - 1);
-    if (east || west) {
-      return true;
-    }
-    return false
+  hasWestNeighbor(row, col) {
+    return this.getTileValue(row, col - 1);
   }
 
-  hasNorthSouthNeighbor(row, col) {
-    const north = this.getTileValue(row - 1, col);
-    const south = this.getTileValue(row + 1, col);
-    if (north || south) {
-      return true;
-    }
-    return false;
+  hasEastNeighbor(row, col) {
+    return this.getTileValue(row, col + 1);
+  }
+
+  hasNorthNeighbor(row, col) {
+    return this.getTileValue(row - 1, col);
+  }
+
+  hasSouthNeighbor(row, col) {
+    return this.getTileValue(row + 1, col);
   }
 
   // Returns true if (row, col) has a neighbor in a cardinal direction that is already on the board.
   hasNeighbor(row, col) {
-    if (this.hasNorthSouthNeighbor(row, col) || this.hasEastWestNeighbor(row, col)) {
+    if (this.hasNorthNeighbor(row, col) || this.hasEastNeighbor(row, col) || this.hasSouthNeighbor(row, col) || this.hasWestNeighbor(row, col)) {
       return true;
     }
     return false;
@@ -279,12 +307,11 @@ class Game extends React.Component {
     return false;
   }
 
-  isStraightLine(tiles) {
-    // tiles: Array of two-element arrays that each contain (row, col) int pairs
-    // e.g. [[2, 1], [13, 14], [6, 6]]
-    // Returns a two-element array:
-    // isStraight: boolean; true if tiles are straight
-    // orientation: 'vertical'/'horizontal' if straight, empty string if not. horizontal if there is just one tile.
+  // tiles: Array of two-element arrays that each contain (row, col) int pairs
+  // e.g. [[2, 1], [13, 14], [6, 6]]
+  // Returns a two-element array:
+  // orientation: 'vertical'/'horizontal' if straight, empty string if not. horizontal if there is just one tile.
+  getOrientation(tiles) {
     let [firstTileRow, firstTileCol] = tiles[0];
     let [isHorizontal, isVertical] = [true, true];
     for (let i = 1; i < tiles.length; i++) {
@@ -296,42 +323,53 @@ class Game extends React.Component {
         isVertical = false;
       }
     }
-    const isStraight = isHorizontal || isVertical;
-
-    let orientation;
-    if (isStraight) {
-      orientation = isHorizontal ? 'horizontal' : 'vertical';
+    if (isHorizontal || isVertical) {
+      return isHorizontal ? 'horizontal' : 'vertical';
     }
     else {
-      orientation = '';
+      return '';
     }
-    return [isStraight, orientation];
   }
 
   render() {
     const newTiles = this.state.newTiles;
-    let desc;
+    const centerTile = this.getTileValue(7, 7);
+    const isFirstTurn = this.state.playerOneScore === 0 && this.state.playerTwoScore === 0;
+    const newTileOrientation = this.state.newTileOrientation;
 
+    let desc;
     if (newTiles.length === 0) {
       desc = "90 letters left";
     }
 
-    else if (this.state.playerOneScore === 0 && this.state.playerTwoScore === 0) {
-      const centerTile = this.getTileValue(7, 7);
-      if (centerTile === '' && newTiles.length > 0) {
+    else if (centerTile === '' && isFirstTurn) {
+      if (newTiles.length > 0) {
         desc = "Center tile needs to be occupied";
-      }
-      else if (centerTile !== '' && newTiles.length === 1) {
-        desc = "One word tile not allowed";
       }
     }
 
-    else {
-      const [isStraight, orientation] = this.isStraightLine(newTiles);
-      if (!isStraight) {
-        desc = "Tiles need to be in a straight line";
-      }
+    else if (centerTile !== '' && newTiles.length === 1) {
+      desc = "One word tile not allowed";
     }
+
+    else if (newTileOrientation === '') {
+      desc = "Tiles need to be in a straight line";
+    }
+
+    else if (!isFirstTurn && this.isTouchingOldTile(newTiles)) {
+      desc = "New tiles need to touch old tiles";
+    }
+
+    else if (!this.hasNoBlankSpaces(newTiles, newTileOrientation)) {
+      desc = "No spaces allowed between tiles";
+    }    
+
+    // test valid words, etc
+    // else {
+
+    // }
+
+
     
     return (
       <div>
@@ -377,5 +415,27 @@ class Game extends React.Component {
 //     'count': 2
 //   }
 // }
+
+  // componentDidMount() {
+  //   fetch("https://www.dictionaryapi.com/api/v3/references/collegiate/json/voluminous?key=5c251dad-fd1e-4086-8671-92278466dd21")
+  //     .then(res => res.json())
+  //     .then(
+  //       (result) => {
+  //         this.setState({
+  //           isLoaded: true,
+  //           item: result[0].meta.id
+  //         });
+  //       },
+  //       // Note: it's important to handle errors here
+  //       // instead of a catch() block so that we don't swallow
+  //       // exceptions from actual bugs in components.
+  //       (error) => {
+  //         this.setState({
+  //           isLoaded: true,
+  //           error
+  //         });
+  //       }
+  //     )
+  // }
 
 export default Game;
