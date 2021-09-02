@@ -99,6 +99,8 @@ class Game extends React.Component {
     super(props);
     this.state = {
       squares: squares,
+      words: {valid: [], invalid: []},
+      points: null,
       playerOneIsNext: true,
       playerOneScore: 0,
       playerTwoScore: 0,
@@ -107,12 +109,26 @@ class Game extends React.Component {
       newTileOrientation: '',
       selectedPlayerTileIdx: null,
       selectedBoardIdx: null,
-      validWordTiles: [],
+      error: null
       // TODO. getNewTile will modify this.
       // tileBank:
     }
     this.handlePlayerTileClick = this.handlePlayerTileClick.bind(this);
     this.handleSquareClick = this.handleSquareClick.bind(this);
+  }
+
+  // [[[2, 3], [3, 3], [4, 3]], [[3, 3], [4, 3]]] -> ['hey', 'hi']
+  displayWords(words) {
+    const display = [];
+    for (let tiles of words) {
+      var word = '';
+      for (let tile of tiles) {
+        let [row, col] = tile;
+        word += this.getTileValue(row, col);
+      }
+      display.push(word);
+    }
+    return display;
   }
 
   // Returns the letter at (row, col) if it exists on the board. Returns an empty string if it does not, or if the coords are out of bounds.
@@ -138,14 +154,17 @@ class Game extends React.Component {
         playerOneTiles[selectedPlayerTileIdx] = '';
         const newTiles = this.state.newTiles.concat([[row, col]]);
         const newTileOrientation = this.getOrientation(newTiles);
-        // const validWordTiles = this.getValidWordTiles(newTiles, newTileOrientation);
+        const wordTiles = this.getWords(newTiles, newTileOrientation);
+        const words = this.validateWords(wordTiles);
+        const points = this.getPoints(words.valid);
         this.setState({
           squares: squares,
           playerOneTiles: playerOneTiles,
           selectedPlayerTileIdx: null,
           newTiles: newTiles,
           newTileOrientation: newTileOrientation,
-          // validWordTiles: validWordTiles
+          words: words,
+          points: points
         })
       }
       else if (selectedBoardIdx !== null) {
@@ -156,14 +175,16 @@ class Game extends React.Component {
           tile[0] === prevRow && tile[1] === prevCol ? [row, col] : tile)
         )
         const newTileOrientation = this.getOrientation(newTiles);
-        // TODO: validWordTiles (find all)
-        // const validWordTiles = this.getValidWordTiles(newTiles, orientation);
+        const wordTiles = this.getWords(newTiles, newTileOrientation);
+        const words = this.validateWords(wordTiles);
+        const points = this.getPoints(words.valid);
         this.setState({
           squares: squares,
           selectedBoardIdx: null,
           newTiles: newTiles,
           newTileOrientation: newTileOrientation,
-          // validWordTiles: validWordTiles
+          words: words,
+          points: points
         })
       }
     }
@@ -206,13 +227,16 @@ class Game extends React.Component {
         playerOneTiles[i] = this.getTileValue(prevRow, prevCol);
         squares[prevRow][prevCol] = '';
         const newTiles = this.state.newTiles.filter(tile => tile[0] !== prevRow || tile[1] !== prevCol);
-        // const validWordTiles = this.getValidWordTiles(newTiles, orientation);
+        const wordTiles = this.getWords(newTiles, this.state.newTileOrientation);
+        const words = this.validateWords(wordTiles);
+        const points = this.getPoints(words.valid);
         this.setState({
           squares: squares,
           playerOneTiles: playerOneTiles,
           selectedBoardIdx: null,
           newTiles: newTiles,
-          // validWordTiles: validWordTiles
+          words: words,
+          points: points
         })
       }
       else if (selectedPlayerTileIdx !== null) {
@@ -233,16 +257,137 @@ class Game extends React.Component {
     )
   }
 
-  // Output e.g. [[[4, 3], [3, 3], [2, 3]], [[2, 2], [2, 3]]] (note three layers of arrays)
-  getValidWordTiles(tiles, orientation) {
-    const validWordTiles = [];
-    if (orientation === 'horizontal') {
-      let horizontalWord;
-      while (this.hasEastWestNeighbor)
-    }
-    for (const tile of tiles) {
+  getTilePoints(tile) {
+    const [row, col] = tile;
+    const tileValue = this.getTileValue(row, col);
+    return this.props.tilePoints[tileValue];
+  }
 
+  // Input: valid words, e.g. (note 3 layers) [[[2, 3], [3, 3], [4, 3]], [[2, 4], [3, 4]]]
+  getPoints(words) {
+    var points = 0;
+    for (let tiles of words) {
+      for (let tile of tiles) {
+        points += this.getTilePoints(tile);
+      }
     }
+    return points;
+  }
+
+  isValidWord(word) {
+    const prefix = "https://www.dictionaryapi.com/api/v3/references/collegiate/json/";
+    const suffix = "?key=5c251dad-fd1e-4086-8671-92278466dd21";
+    const link = prefix + word + suffix;
+    fetch(link)
+      .then(res => res.json())
+      .then(
+        (result) => {
+          if (result[0].constructor !== Object) {
+            return false;
+          }
+          else {
+            return true;
+          }
+        },
+        (error) => {
+          this.setState({
+            error
+          });
+        }
+      )
+  }
+
+  // Output e.g. {valid: [[]], invalid: [[[4, 3], [3, 3], [2, 3]], [[2, 2], [2, 3]]] (note three layers of arrays)
+  validateWords(words) {
+    const validate = {valid: [], invalid: []};
+    const display = this.displayWords(words);
+
+    for (let i = 0; i < display.length; i++) {
+      const word = display[0];
+      this.isValidWord(word) ? validate.valid.push(words[i]) : validate.invalid.push(words[i]);
+    }
+    return validate
+  }
+
+  getWord(tiles, orientation) {
+    var word = [];
+    var [row, col] = tiles[0];
+    if (orientation === 'horizontal') {
+      if (this.getWestNeighbor(row, col) === '' && this.getEastNeighbor(row, col) === '') {
+        return null;
+      }
+      var westNeighbor = this.getWestNeighbor(row, col);
+      while (westNeighbor !== '') {
+        col -= 1;
+        word.unshift([row, col]);
+        westNeighbor = this.getWestNeighbor(row, col);      
+      }
+      word = word.concat(tiles);
+      [row, col] = tiles[tiles.length - 1];
+      var eastNeighbor = this.getEastNeighbor(row, col);
+      while (eastNeighbor !== '') {
+        col += 1;
+        word.concat([row, col]);
+        eastNeighbor = this.getEastNeighbor(row, col);
+      }
+    }
+    else {
+      if (this.getNorthNeighbor(row, col) === '' && this.getSouthNeighbor(row, col) === '') {
+        return null;
+      }
+      var northNeighbor = this.getNorthNeighbor(row, col);
+      while (northNeighbor !== '') {
+        row -= 1;
+        word.unshift([row, col]);
+        northNeighbor = this.getNorthNeighbor(row, col);      
+      }
+      word = word.concat(tiles);
+      [row, col] = tiles[tiles.length - 1];
+      var southNeighbor = this.getSouthNeighbor(row, col);
+      while (southNeighbor !== '') {
+        col += 1;
+        word.concat([row, col]);
+        southNeighbor = this.getSouthNeighbor(row, col);
+      }
+    }
+    return word;
+  }
+
+  // Example: [[3, 3], [3, 4], [3, 2]] -> [[2, 3], [3, 3], [4, 3]]
+  sortTiles(tiles, orientation) {
+    var sortedTiles = [];
+    if (orientation === 'horizontal') {
+      const row = tiles[0][0];
+      const cols = tiles.map(tile => tile[1]);
+      const sortedCols = cols.sort();
+      sortedTiles = sortedCols.map(col => [row, col]);
+    }
+    // TODO
+    // else {
+
+    // }
+    return sortedTiles;
+  }
+
+  // Returns an array that corresponds to each word that is connected to tiles, both verically and horizontally.
+  getWords(tiles, orientation) {
+    if (tiles.length === 1) {
+      return [];
+    }
+
+    const words = [];
+    const sortedTiles = this.sortTiles(tiles, orientation);
+    const wordAlongOrientation = this.getWord(sortedTiles, orientation);
+    words.push(wordAlongOrientation);
+
+    const newOrientation = (orientation === 'horizontal') ? 'vertical' : 'horizontal';
+    for (let tile of tiles) {
+      let word = this.getWord([tile], newOrientation);
+      if (word !== null) {
+        words.push(word);
+      }
+    }
+    return words
   }
 
   // Returns true if there aren't any blank spaces between tiles, and false otherwise.
@@ -272,25 +417,25 @@ class Game extends React.Component {
     return true;
   }
 
-  hasWestNeighbor(row, col) {
+  getWestNeighbor(row, col) {
     return this.getTileValue(row, col - 1);
   }
 
-  hasEastNeighbor(row, col) {
+  getEastNeighbor(row, col) {
     return this.getTileValue(row, col + 1);
   }
 
-  hasNorthNeighbor(row, col) {
+  getNorthNeighbor(row, col) {
     return this.getTileValue(row - 1, col);
   }
 
-  hasSouthNeighbor(row, col) {
+  getSouthNeighbor(row, col) {
     return this.getTileValue(row + 1, col);
   }
 
   // Returns true if (row, col) has a neighbor in a cardinal direction that is already on the board.
   hasNeighbor(row, col) {
-    if (this.hasNorthNeighbor(row, col) || this.hasEastNeighbor(row, col) || this.hasSouthNeighbor(row, col) || this.hasWestNeighbor(row, col)) {
+    if (this.getNorthNeighbor(row, col) || this.getEastNeighbor(row, col) || this.getSouthNeighbor(row, col) || this.getWestNeighbor(row, col)) {
       return true;
     }
     return false;
@@ -336,9 +481,15 @@ class Game extends React.Component {
     const centerTile = this.getTileValue(7, 7);
     const isFirstTurn = this.state.playerOneScore === 0 && this.state.playerTwoScore === 0;
     const newTileOrientation = this.state.newTileOrientation;
+    const words = this.state.words;
+    const error = this.state.error;
 
     let desc;
-    if (newTiles.length === 0) {
+    if (error !== null) {
+      desc = error;
+    }
+
+    else if (newTiles.length === 0) {
       desc = "90 letters left";
     }
 
@@ -362,14 +513,16 @@ class Game extends React.Component {
 
     else if (!this.hasNoBlankSpaces(newTiles, newTileOrientation)) {
       desc = "No spaces allowed between tiles";
-    }    
+    }
 
-    // test valid words, etc
-    // else {
-
-    // }
-
-
+    else if (words.invalid.length > 0) {
+      const invalidWords = this.displayWords(words.invalid);
+      desc = "Invalid words:" + invalidWords.map(w => ' ' + w);
+    }
+    
+    else {
+      desc = "Points: " + this.state.points.toString();
+    }
     
     return (
       <div>
@@ -405,37 +558,73 @@ class Game extends React.Component {
   }
 }
 
-// const LETTERS = {
-//   'A': {
-//     'value': 1,
-//     'count': 9
-//   },
-//   'B': {
-//     'value': 3,
-//     'count': 2
+
+// class Game extends React.Component {
+//   constructor(props) {
+//     super(props);
+//     this.state = {
+//       error: null,
+//       isLoaded: false,
+//       items: []
+//     };
+//     this.handleClick = this.handleClick.bind(this);
+//   }
+
+//   handleClick() {
+//     fetch("https://www.dictionaryapi.com/api/v3/references/collegiate/json/volzuminous?key=5c251dad-fd1e-4086-8671-92278466dd21")
+//       .then(res => res.json())
+//       .then(
+//         (result) => {
+//           if (result[0].constructor !== Object) {
+//             alert(result);
+//           }
+//           else {
+//             this.setState({
+//               isLoaded: true,
+//               item: result[0].meta.id
+//             });
+//           }
+//         },
+//         // Note: it's important to handle errors here
+//         // instead of a catch() block so that we don't swallow
+//         // exceptions from actual bugs in components.
+//         (error) => {
+//           this.setState({
+//             isLoaded: true,
+//             error
+//           });
+//         }
+//       )
+//   }
+
+//   render() {
+//     const { error, isLoaded, items } = this.state;
+//     if (error) {
+//       return <div>Error: {error.message}</div>;
+//     } else if (!isLoaded) {
+//       return (
+//         <div>
+//           <div>
+//             <input type="button" value="Button" onClick={this.handleClick} />
+//           </div>
+//           <div>
+//             "Loading..."
+//           </div>
+//         </div>
+//       )
+//     } else {
+//       return (
+//         <div>
+//           <div>
+//             <input type="button" value="Button" onClick={this.handleClick} />
+//           </div>
+//           <div>
+//             {this.state.item}
+//           </div>
+//         </div>
+//       );
+//     }
 //   }
 // }
-
-  // componentDidMount() {
-  //   fetch("https://www.dictionaryapi.com/api/v3/references/collegiate/json/voluminous?key=5c251dad-fd1e-4086-8671-92278466dd21")
-  //     .then(res => res.json())
-  //     .then(
-  //       (result) => {
-  //         this.setState({
-  //           isLoaded: true,
-  //           item: result[0].meta.id
-  //         });
-  //       },
-  //       // Note: it's important to handle errors here
-  //       // instead of a catch() block so that we don't swallow
-  //       // exceptions from actual bugs in components.
-  //       (error) => {
-  //         this.setState({
-  //           isLoaded: true,
-  //           error
-  //         });
-  //       }
-  //     )
-  // }
 
 export default Game;
